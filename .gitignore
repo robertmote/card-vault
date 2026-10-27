@@ -1,0 +1,3 @@
+# Only the app itself is published. Your cards live in each browser, never in these files.
+.claude/
+card-vault-test-data.json
