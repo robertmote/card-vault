@@ -6,7 +6,8 @@ const GAMES = { pokemon: 'Pokémon', mtg: 'Magic', ygo: 'Yu-Gi-Oh!', custom: 'Sp
 // One pass over the cards gives every total the UI needs.
 function tally() {
   const blank = () => ({ qty: 0, val: 0, cost: 0 });
-  const t = { all: blank(), view: blank(), col: Object.fromEntries(collections.map(n => [n, blank()])), game: {} };
+  // prototype-free tables, so a name like "__proto__" is just a key and can't reach Object.prototype
+  const t = { all: blank(), view: blank(), col: Object.assign(Object.create(null), Object.fromEntries(collections.map(n => [n, blank()]))), game: Object.create(null) };
   const add = (b, c, v, k) => { b.qty += c.qty; b.val += v; b.cost += k; };
   for (const c of cards) {
     const v = value(c), k = (c.cost || 0) * c.qty;
@@ -89,7 +90,7 @@ function drawChart(pts, up) {
 
 async function refresh() {
   const btn = $('#refresh'), groups = {};
-  for (const c of cards) if (sources[c.game]) (groups[c.game] ??= new Set()).add(String(c.id));
+  for (const c of cards) if (Object.hasOwn(sources, c.game)) (groups[c.game] ??= new Set()).add(String(c.id));
   const total = Object.values(groups).reduce((s, g) => s + g.size, 0);
   if (!total) return $('#status').textContent = 'Nothing to refresh: sports and custom cards use your own value.';
   let done = 0;

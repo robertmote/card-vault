@@ -30,17 +30,17 @@ $('#import').onchange = async e => {
   if (!f) return;
   try {
     const d = JSON.parse(await f.text());
-    if (!Array.isArray(d.cards) || d.cards.some(c => !c || typeof c !== 'object')) throw new Error('not a Card Vault backup');
+    if (!Array.isArray(d?.cards) || d.cards.some(c => !c || typeof c !== 'object')) throw new Error('not a Card Vault backup');
     if (!await ask(`Replace your current collection with ${d.cards.length} cards from this backup?`)) return;
-    collections = Array.isArray(d.collections) && d.collections.length ? d.collections.map(String) : ['Main'];
-    cards = d.cards; cards.forEach(migrate);
-    colors = d.colors && typeof d.colors === 'object' ? d.colors : {};
-    history = Array.isArray(d.history) ? d.history : []; profile = d.profile ?? profile; cur = 'All'; page = 0;
+    ({ cards, history, colors, profile, collections } = cleanData(d)); cards.forEach(migrate);
+    cur = 'All'; page = 0;
     save(); render(); renderProfile();
   } catch (err) { tell('Import failed: ' + err.message); }
 };
 // Page offsets are in screen widths, so re-align after the window changes size.
 addEventListener('resize', () => { if (cur !== 'All') $('#pages').scrollLeft = page * $('#pages').clientWidth; });
 
+// Clean what's in storage too: data saved before validation existed, or written by another page on this address.
+({ cards, history, colors, profile, collections } = cleanData({ cards, history, colors, profile, collections })); cards.forEach(migrate);
 if (oldFormat) save('cards', 'collections'); // persist the slimmer format once
 render(); renderProfile();

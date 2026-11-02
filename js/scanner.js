@@ -1,8 +1,11 @@
 // --- Scanner: the camera reads a card's printed name and number, then the same price sites look it up ---
 // ponytail: reads printed text (free) rather than recognising the artwork (paid services); glare or sleeves can
 // defeat it, and Magic is matched by name so it lands on the default printing. Upgrade path: an image-match API.
-const TESS = { src: 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js',
-               integrity: 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F' };
+// The text reader (tesseract.js 5.1.1) is served from this site's own vendor/ folder, never a CDN at run time: its
+// worker, engine and English data were checked byte-for-byte against two CDNs when added. The worker resolves paths
+// from a blob: URL, so they must be absolute.
+const VENDOR = new URL('vendor/tesseract/', location.href).href;
+const TESS = { src: VENDOR + 'tesseract.min.js', integrity: 'sha384-GJqSu7vueQ9qN0E9yLPb3Wtpd7OrgK8KmYzC8T1IysG1bcvxvIO4qtYR/D3A991F' };
 // Strips of the card the reader looks at, as fractions of its height: the name along the top, the Yu-Gi-Oh! set code
 // just under the art, and the number/set line along the bottom.
 const BANDS = { top: [.02, .14], mid: [.69, .8], bottom: [.86, 1] };
@@ -17,7 +20,7 @@ const orNull = p => p.catch(() => null); // "no such card" answers come back as 
 function reader() {
   ocr ??= (window.Tesseract ? Promise.resolve() : new Promise((ok, fail) => document.head.append(Object.assign(document.createElement('script'),
       { ...TESS, crossOrigin: 'anonymous', onload: ok, onerror: () => fail(new Error("couldn't download the text reader")) }))))
-    .then(() => Tesseract.createWorker('eng'))
+    .then(() => Tesseract.createWorker('eng', 1, { workerPath: VENDOR + 'worker.min.js', corePath: VENDOR + 'core', langPath: VENDOR + 'lang' }))
     .then(async w => { await w.setParameters({ tessedit_pageseg_mode: '6' }); return w; }); // 6 = read each strip as one block of text
   return ocr.catch(e => { ocr = null; throw e; });
 }

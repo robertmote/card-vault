@@ -25,7 +25,7 @@ async function openCard(g, id, existing) {
   $('#dlg').returnValue = ''; // Esc keeps the old returnValue otherwise
   $('#dlg').showModal();
   // Editing opens instantly with the stored price; the other printings load in behind it.
-  if (existing && sources[d.game]) getCard(d.game, d.id).then(r => {
+  if (existing && Object.hasOwn(sources, d.game)) getCard(d.game, d.id).then(r => {
     if (editing !== d || !$('#dlg').open) return;
     editPrices = { ...r.prices, ...(r.prices[d.variant] == null && d.market != null && { [d.variant]: d.market }) };
     fillVariants($('#dVariant').value); syncManual();

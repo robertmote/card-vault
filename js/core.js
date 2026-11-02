@@ -5,10 +5,11 @@ const USD = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' 
 const usd = n => n == null ? '—' : USD.format(n);
 const SHORT = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact', maximumFractionDigits: 1 });
 const tagUsd = n => n == null ? '—' : n < 100 ? USD.format(n) : SHORT.format(n); // price stickers: $8.40, $477, $1.3K
-const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' };
-const esc = s => String(s ?? '').replace(/[&<>"]/g, ch => ESC[ch]);
+const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, ch => ESC[ch]);
 const byName = new Intl.Collator().compare; // much faster than localeCompare inside a sort
-const load = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } };
+// (a stored value of the wrong shape, e.g. an object where a list belongs, falls back to the default)
+const load = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v != null && Array.isArray(v) === Array.isArray(d) && typeof v === typeof d ? v : d; } catch { return d; } };
 
 let cards = load('cards', []);      // {key, game, id, name, set, img, thumb, variant, market, col, qty, cond, grader, grade, manual, cost, price, prevPrice, added}
 let history = load('history', []);  // {t, v: all-binders total, by: {binder: total}}
@@ -20,7 +21,8 @@ let game = 'pokemon', range = 30, editing = null, editPrices = {}, cur = 'All', 
 
 // Binder nylon colours: [cover/spine, lighter shade for meters and swatch rings].
 const COLORS = { Black: ['#1a1a1c', '#8d8a84'], Navy: ['#1d2a44', '#6f8fc9'], Red: ['#3a1717', '#c9706a'], Green: ['#1f3324', '#6fae7f'], Tan: ['#4a3d28', '#c8ab72'] };
-const colorOf = n => COLORS[colors[n]] ?? COLORS.Black;
+// (own keys only: a stored colour like "constructor" must not reach Object's built-ins)
+const colorOf = n => Object.hasOwn(COLORS, colors[n]) ? COLORS[colors[n]] : COLORS.Black;
 
 // Older saves kept every printing's price on every card (~1 KB each, enough to fill browser storage at a few
 // thousand cards). Now a card stores only its chosen printing's market price; the full list is fetched when editing.
@@ -30,8 +32,31 @@ function migrate(c) {
   c.key ??= crypto.randomUUID(); c.qty = Math.max(1, Math.round(+c.qty) || 1); // hand-edited backups: missing key, "2" as text
   if (!collections.includes(c.col)) collections.push(c.col); // otherwise its cards could never be selected
   if (c.prices) { c.market ??= c.prices[c.variant] ?? null; delete c.prices; }
-  c.thumb ??= THUMB[c.game]?.(c.img || '') ?? c.img;
+  c.thumb ??= Object.hasOwn(THUMB, c.game) ? THUMB[c.game](String(c.img || '')) : c.img;
 }
+// Backups (and anything already in storage) are untrusted: rebuild every field to a known type, so a crafted file
+// can't break the app on each load or point it at other servers. Called from main.js once every script has loaded.
+const text = (v, max = 200) => v == null ? '' : String(v).slice(0, max);
+const amount = v => v === null || v === '' || !Number.isFinite(+v) ? null : +v;
+const httpsUrl = v => /^https:\/\//i.test(v ?? '') ? text(v, 500) : '';
+function cleanData(d) {
+  const binders = [...new Set((Array.isArray(d.collections) ? d.collections : []).map(n => text(n, 40)).filter(Boolean))];
+  const cards = (Array.isArray(d.cards) ? d.cards : []).filter(c => c && typeof c === 'object').map(c => ({
+    key: text(c.key, 64) || crypto.randomUUID(), game: Object.hasOwn(GAMES, c.game) ? c.game : 'custom', id: text(c.id, 80),
+    name: text(c.name), set: text(c.set), img: httpsUrl(c.img), thumb: httpsUrl(c.thumb), variant: text(c.variant, 80) || 'none',
+    market: amount(c.market ?? c.prices?.[c.variant]), col: text(c.col, 40) || binders[0] || 'Main', qty: c.qty, // (old backups kept a price per printing)
+    cond: Object.hasOwn(COND, c.cond) ? c.cond : 'Near Mint', grader: text(c.grader, 10) || null, grade: amount(c.grade),
+    manual: amount(c.manual), cost: amount(c.cost), price: amount(c.price), prevPrice: amount(c.prevPrice), added: amount(c.added) ?? 0 }));
+  const history = (Array.isArray(d.history) ? d.history : []).filter(h => h && Number.isFinite(h.t) && Number.isFinite(h.v))
+    .map(h => ({ t: h.t, v: h.v, by: Object.fromEntries(Object.entries(h.by && typeof h.by === 'object' ? h.by : {}).filter(([, v]) => Number.isFinite(v))) }));
+  const colors = Object.fromEntries(Object.entries(d.colors && typeof d.colors === 'object' ? d.colors : {}).filter(([, c]) => Object.hasOwn(COLORS, c)));
+  const p = d.profile && typeof d.profile === 'object' ? d.profile : {};
+  // the photo may only be the small JPEG the app itself makes, never a link to another server
+  const profile = { name: text(p.name, 30), email: text(p.email, 254), ...(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(p.photo ?? '') && { photo: p.photo }) };
+  return { cards, history, colors, profile, collections: binders.length ? binders : ['Main'] };
+}
+
+cards = cards.filter(c => c && typeof c === 'object');
 const oldFormat = cards.some(c => c.prices || c.thumb === undefined);
 cards.forEach(migrate);
 
@@ -73,12 +98,15 @@ function ask(msg, { input = false, value = '', cancel = true, color = null } = {
   $('#askMsg').textContent = msg;
   $('#askIn').classList.toggle('hidden', !input); $('#askIn').required = input; $('#askIn').value = value;
   $('#askColors').classList.toggle('hidden', !color);
-  if (color) $(`#askColors input[value="${color}"]`).checked = true;
+  if (color) for (const i of $('#askColors').querySelectorAll('input')) i.checked = i.value === color; // compared, not built into a selector
   $('#askCancel').classList.toggle('hidden', !cancel);
   d.returnValue = ''; d.showModal();
   return new Promise(res => d.addEventListener('close', () =>
     res(d.returnValue !== 'ok' ? null : input ? $('#askIn').value.trim() : true), { once: true }));
 }
 const tell = msg => ask(msg, { cancel: false });
+// Cancel / ✕ / Remove buttons close their dialog (data-close="value"); wired here rather than onclick="" so the
+// security policy can forbid all inline script.
+for (const b of document.querySelectorAll('[data-close]')) b.onclick = () => b.closest('dialog').close(b.dataset.close);
 const pickedColor = () => $('#askColors input:checked').value;
 const nameProblem = n => !n ? 'empty' : n === 'All' ? `"${n}" is reserved` : collections.includes(n) ? `"${n}" already exists` : null;

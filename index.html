@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; worker-src 'self' blob:; connect-src 'self' https://api.tcgdex.net https://api.scryfall.com https://db.ygoprodeck.com; img-src 'self' https: data:; style-src 'self' 'unsafe-inline'; object-src 'none'; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Card Vault</title>
 <!-- home-screen app: name, icon and full-screen launch when added from the phone's browser -->
@@ -113,7 +115,7 @@
       <div id="dCustom">
         <label for="cName">Card name</label><input id="cName" placeholder="e.g. 2018 Prizm Luka Doncic #280">
         <label for="cSet">Set / year</label><input id="cSet" placeholder="optional">
-        <label for="cImg">Image URL</label><input id="cImg" type="url" placeholder="optional">
+        <label for="cImg">Image URL</label><input id="cImg" type="url" pattern="https://.*" title="An https:// image address" placeholder="optional, https://…">
       </div>
       <div id="dVariantWrap"><label for="dVariant">Variant / printing</label><select id="dVariant"></select></div>
       <label for="dCol">Binder</label><select id="dCol"></select>
@@ -129,8 +131,8 @@
       <label for="dCost">Purchase price (each, USD)</label><input id="dCost" inputmode="decimal" type="number" min="0" step="0.01" placeholder="optional">
       <div class="actions">
         <!-- type="button" so pressing Enter in a field triggers Save, not the first button -->
-        <button type="button" class="btn ghost hidden" id="dDelete" style="margin-right:auto;color:#a8392c" onclick="this.closest('dialog').close('delete')">Remove</button>
-        <button type="button" class="btn ghost" onclick="this.closest('dialog').close()">Cancel</button>
+        <button type="button" class="btn ghost hidden" id="dDelete" style="margin-right:auto;color:#a8392c" data-close="delete">Remove</button>
+        <button type="button" class="btn ghost" data-close>Cancel</button>
         <button class="btn" value="save">Save</button>
       </div>
     </div>
@@ -141,7 +143,7 @@
   <video id="scanVid" playsinline muted></video>
   <div class="guide"><i></i><i></i><i></i><i></i><p class="readout" id="readout" aria-live="polite"></p></div>
   <div class="scantop">
-    <button type="button" class="iconbtn" id="scanClose" aria-label="Close scanner" onclick="this.closest('dialog').close()">✕</button>
+    <button type="button" class="iconbtn" id="scanClose" aria-label="Close scanner" data-close>✕</button>
     <div class="seg" role="group" aria-label="Scan mode"><button type="button" data-mode="check">Price check</button><button type="button" data-mode="add">Add to binder</button></div>
     <button type="button" class="iconbtn hidden" id="torch" aria-label="Flash" aria-pressed="false">⚡</button>
   </div>
@@ -160,7 +162,7 @@
     <input id="askIn" aria-labelledby="askMsg" maxlength="40" autocomplete="off">
     <div id="askColors" class="swatches" role="radiogroup" aria-label="Binder colour"></div>
     <div class="actions">
-      <button type="button" class="btn ghost" id="askCancel" onclick="this.closest('dialog').close()">Cancel</button>
+      <button type="button" class="btn ghost" id="askCancel" data-close>Cancel</button>
       <button class="btn" value="ok">OK</button>
     </div>
   </form>
