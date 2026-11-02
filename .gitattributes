@@ -1,0 +1,2 @@
+# Third-party files are checked by fingerprint; never let git rewrite their line endings.
+vendor/** -text
